@@ -33,9 +33,13 @@ export const DEFAULT_SECTION_TITLES: Record<SectionKey, string> = {
   languages: "Languages",
 };
 
+/**
+ * Skills are free-form groups: an ordered map of group name → skills, rendered in the order given.
+ * Any group name works ("Frontend", "Backend", "Soft Skills" …). The classic keys below get friendly
+ * labels; a group named "" is rendered as an unlabeled list.
+ */
 export const SKILL_CATEGORIES = ["languages", "frameworks", "databases", "cloud", "tools", "other"] as const;
-export type SkillCategory = (typeof SKILL_CATEGORIES)[number];
-export const SKILL_CATEGORY_LABELS: Record<SkillCategory, string> = {
+const CLASSIC_LABELS: Record<string, string> = {
   languages: "Languages",
   frameworks: "Frameworks",
   databases: "Databases",
@@ -43,6 +47,59 @@ export const SKILL_CATEGORY_LABELS: Record<SkillCategory, string> = {
   tools: "Tools",
   other: "Other",
 };
+
+/** Display label for a skill group key: classic keys → friendly label, snake_case → Title Case, else as written. */
+export function skillLabel(key: string): string {
+  if (CLASSIC_LABELS[key]) return CLASSIC_LABELS[key];
+  if (/^[a-z0-9_]+$/.test(key)) return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return key;
+}
+
+export type SkillGroups = Record<string, string[]>;
+
+/**
+ * Accepts: { "Frontend": ["React"], … } · ["Go", "Java"] (one unlabeled group) ·
+ * [{ "name" | "category" | "label": "Frontend", "items" | "skills": [...] }, …].
+ * Empty groups are dropped; order is preserved.
+ */
+function normalizeSkills(input: unknown): unknown {
+  if (input == null) return {};
+  if (Array.isArray(input)) {
+    if (input.every((x) => typeof x === "string" || typeof x === "number")) return { "": input.map(String) };
+    const out: Record<string, unknown> = {};
+    for (const g of input) {
+      if (!g || typeof g !== "object") continue;
+      const o = g as Record<string, unknown>;
+      const name = String(o.name ?? o.category ?? o.label ?? o.title ?? "");
+      const items = o.items ?? o.skills ?? o.list ?? [];
+      out[name] = [...((out[name] as string[]) ?? []), ...(Array.isArray(items) ? items.map(String) : [])];
+    }
+    return out;
+  }
+  return input;
+}
+
+const skillGroupList = z
+  .array(z.union([z.string(), z.number()]).transform((v) => String(v).trim().slice(0, 80)))
+  .max(80)
+  .catch([])
+  .transform((a) => a.filter(Boolean));
+
+export const skillsSchema = z.preprocess(
+  normalizeSkills,
+  z
+    .record(z.string().max(60), skillGroupList)
+    .catch({})
+    .transform((rec) => {
+      const out: SkillGroups = {};
+      for (const [k, v] of Object.entries(rec).slice(0, 30)) if (v.length) out[k.trim()] = [...(out[k.trim()] ?? []), ...v];
+      return out;
+    }),
+);
+
+export function hasSkills(skills: SkillGroups): boolean {
+  return Object.values(skills).some((g) => g.length > 0);
+}
 
 export const headerSchema = z.object({
   name: str(120),
@@ -55,14 +112,6 @@ export const headerSchema = z.object({
   github: str(300),
 });
 
-export const skillsSchema = z.object({
-  languages: list(),
-  frameworks: list(),
-  databases: list(),
-  cloud: list(),
-  tools: list(),
-  other: list(),
-});
 
 export const experienceItemSchema = z.object({
   company: str(160),
@@ -173,7 +222,7 @@ export function sectionHasContent(body: ResumeBody, key: SectionKey): boolean {
     case "summary":
       return body.summary.content.trim().length > 0;
     case "skills":
-      return SKILL_CATEGORIES.some((c) => body.skills[c].length > 0);
+      return hasSkills(body.skills);
     default:
       return body[key].length > 0;
   }

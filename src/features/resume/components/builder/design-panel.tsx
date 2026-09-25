@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlignCenter, AlignLeft, AlignRight, Columns2, PanelLeft, RotateCcw, Rows3 } from "lucide-react";
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Columns2, PanelLeft, RotateCcw, Rows3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -30,6 +30,21 @@ const PALETTES: { name: string; colors: FormatSettings["colors"] }[] = [
   { name: "Ocean", colors: { header: "#1d4ed8", accent: "#06b6d4", divider: "#bae6fd", text: "#1e293b" } },
   { name: "Berry", colors: { header: "#6d28d9", accent: "#db2777", divider: "#f5d0fe", text: "#1f2937" } },
   { name: "Lagoon", colors: { header: "#0f766e", accent: "#84cc16", divider: "#d9f99d", text: "#1f2937" } },
+];
+
+/** One-click job header layouts (previews use sample text). */
+const JOB_PRESETS: {
+  name: string;
+  style: { entry_layout: "inline" | "stacked"; entry_location: "left" | "right" | "hide"; entry_type: "dot" | "pipe" | "paren" | "split" | "hide" };
+  line1Company: boolean;
+  line2Left: string;
+  line2Right: string;
+}[] = [
+  { name: "Classic", style: { entry_layout: "inline", entry_location: "left", entry_type: "dot" }, line1Company: true, line2Left: "Seattle, WA · Full Time", line2Right: "" },
+  { name: "Type on the right", style: { entry_layout: "inline", entry_location: "left", entry_type: "split" }, line1Company: true, line2Left: "Seattle, WA", line2Right: "Full Time" },
+  { name: "Company below, location right", style: { entry_layout: "stacked", entry_location: "right", entry_type: "hide" }, line1Company: false, line2Left: "Amazon", line2Right: "Seattle, WA" },
+  { name: "Company below, type in brackets", style: { entry_layout: "stacked", entry_location: "right", entry_type: "paren" }, line1Company: false, line2Left: "Amazon", line2Right: "Seattle, WA (Full Time)" },
+  { name: "Company below, type after bar", style: { entry_layout: "stacked", entry_location: "right", entry_type: "pipe" }, line1Company: false, line2Left: "Amazon", line2Right: "Seattle, WA | Full Time" },
 ];
 
 function Group({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
@@ -116,10 +131,18 @@ export function DesignPanel({ templates }: { templates: TemplateOption[] }) {
   const setFormat = useBuilder((s) => s.setFormat);
   const replaceFormat = useBuilder((s) => s.replaceFormat);
 
-  const applyTemplate = (t: TemplateOption) => {
-    // Apply the template's visual defaults, keep page setup chosen by the user.
+  /**
+   * Apply a template's visual defaults, keeping the user's page setup. Switching templates also keeps
+   * the template-independent style choices (alignment, bullets, separators…); "Reset style" clears them.
+   */
+  const applyTemplate = (t: TemplateOption, reset = false) => {
     const next = mergeFormat({ ...DEFAULT_FORMAT, template: t.key }, t.defaultFormatting);
-    replaceFormat({ ...next, page_size: format.page_size, spacing: { ...next.spacing, page_margin: format.spacing.page_margin } });
+    replaceFormat({
+      ...next,
+      page_size: format.page_size,
+      spacing: { ...next.spacing, page_margin: format.spacing.page_margin, ...(reset ? {} : { item_spacing: format.spacing.item_spacing }) },
+      ...(reset ? {} : { style: format.style }),
+    });
   };
   const current = templates.find((t) => t.key === format.template);
   // Thumbnails use each template's own defaults (static → rendered once).
@@ -134,7 +157,7 @@ export function DesignPanel({ templates }: { templates: TemplateOption[] }) {
         title="Template"
         action={
           current && (
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => applyTemplate(current)}>
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => applyTemplate(current, true)}>
               <RotateCcw className="size-3" /> Reset style
             </Button>
           )
@@ -179,26 +202,189 @@ export function DesignPanel({ templates }: { templates: TemplateOption[] }) {
             ]}
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="grid gap-1.5">
-            <Label className="font-normal">Alignment</Label>
-            <Segmented
-              label="Alignment"
-              value={format.alignment}
-              onChange={(alignment) => setFormat({ alignment })}
-              options={[
-                { value: "left", label: "", icon: AlignLeft },
-                { value: "center", label: "", icon: AlignCenter },
-                { value: "right", label: "", icon: AlignRight },
-              ]}
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label className="font-normal">Page size</Label>
-            <Segmented label="Page size" value={format.page_size} onChange={(page_size) => setFormat({ page_size })} options={[{ value: "A4", label: "A4" }, { value: "Letter", label: "Letter" }]} />
-          </div>
+        <div className="grid gap-1.5">
+          <Label className="font-normal">Page size</Label>
+          <Segmented label="Page size" value={format.page_size} onChange={(page_size) => setFormat({ page_size })} options={[{ value: "A4", label: "A4" }, { value: "Letter", label: "Letter" }]} />
         </div>
         <SliderRow label="Page margin" value={format.spacing.page_margin} min={6} max={30} step={1} unit=" mm" onChange={(v) => setFormat({ spacing: { page_margin: v } })} />
+      </Group>
+
+      <Group title="Alignment">
+        <div className="grid gap-1.5">
+          <Label className="font-normal">Header — name, title &amp; contact</Label>
+          <Segmented
+            label="Header alignment"
+            value={format.alignment}
+            onChange={(alignment) => setFormat({ alignment })}
+            options={[
+              { value: "left", label: "Left", icon: AlignLeft },
+              { value: "center", label: "Center", icon: AlignCenter },
+              { value: "right", label: "Right", icon: AlignRight },
+            ]}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label className="font-normal">Section titles</Label>
+          <Segmented
+            label="Section title alignment"
+            value={format.style.heading_align}
+            onChange={(heading_align) => setFormat({ style: { heading_align } })}
+            options={[
+              { value: "header", label: "As header" },
+              { value: "left", label: "", icon: AlignLeft },
+              { value: "center", label: "", icon: AlignCenter },
+              { value: "right", label: "", icon: AlignRight },
+            ]}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label className="font-normal">Body text — summary &amp; bullets</Label>
+          <Segmented
+            label="Body text alignment"
+            value={format.style.body_align}
+            onChange={(body_align) => setFormat({ style: { body_align } })}
+            options={[
+              { value: "template", label: "Template" },
+              { value: "left", label: "Left", icon: AlignLeft },
+              { value: "justify", label: "Justify", icon: AlignJustify },
+            ]}
+          />
+        </div>
+      </Group>
+
+      <Group title="Job entries">
+        <div className="grid gap-1.5">
+          <Label className="font-normal">Presets</Label>
+          <div className="grid gap-1.5">
+            {JOB_PRESETS.map((p) => {
+              const active = p.style.entry_layout === format.style.entry_layout && p.style.entry_location === format.style.entry_location && p.style.entry_type === format.style.entry_type;
+              return (
+                <button
+                  key={p.name}
+                  type="button"
+                  aria-pressed={active}
+                  aria-label={`Job header preset: ${p.name}`}
+                  onClick={() => setFormat({ style: p.style })}
+                  className={cn(
+                    "rounded-md border px-2.5 py-1.5 text-left text-[11px] leading-snug transition-colors",
+                    active ? "border-brand bg-brand/5 ring-brand/30 ring-2" : "hover:bg-accent",
+                  )}
+                >
+                  <div className="flex justify-between gap-2">
+                    <span>
+                      <b>Software Engineer</b>
+                      {p.line1Company && <span className="text-muted-foreground"> · Amazon</span>}
+                    </span>
+                    <span className="text-muted-foreground">Jan 2019 – Mar 2021</span>
+                  </div>
+                  <div className="text-muted-foreground flex justify-between gap-2">
+                    <span>{p.line2Left}</span>
+                    <span>{p.line2Right}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="grid gap-1.5">
+          <Label className="font-normal">Company</Label>
+          <Segmented
+            label="Company placement"
+            value={format.style.entry_layout}
+            onChange={(entry_layout) => setFormat({ style: { entry_layout } })}
+            options={[
+              { value: "inline", label: "After role" },
+              { value: "stacked", label: "Own line" },
+            ]}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label className="font-normal">Location</Label>
+          <Segmented
+            label="Location placement"
+            value={format.style.entry_location}
+            onChange={(entry_location) => setFormat({ style: { entry_location } })}
+            options={[
+              { value: "left", label: "Left" },
+              { value: "right", label: "Right" },
+              { value: "hide", label: "Hide" },
+            ]}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label className="font-normal">Employment type</Label>
+          <Segmented
+            label="Employment type"
+            value={format.style.entry_type}
+            onChange={(entry_type) => setFormat({ style: { entry_type } })}
+            options={[
+              { value: "dot", label: "· Type" },
+              { value: "pipe", label: "| Type" },
+              { value: "paren", label: "(Type)" },
+              { value: "split", label: "Other side" },
+              { value: "hide", label: "Hide" },
+            ]}
+          />
+        </div>
+      </Group>
+
+      <Group title="Section titles & bullets">
+        <div className="grid gap-1.5">
+          <Label className="font-normal">Section title case</Label>
+          <Segmented
+            label="Section title case"
+            value={format.style.heading_case}
+            onChange={(heading_case) => setFormat({ style: { heading_case } })}
+            options={[
+              { value: "template", label: "Template" },
+              { value: "normal", label: "Aa" },
+              { value: "uppercase", label: "AA" },
+            ]}
+          />
+        </div>
+        <SliderRow
+          label="Section title size"
+          value={format.style.heading_size}
+          min={0}
+          max={20}
+          step={0.5}
+          format={(v) => (v === 0 ? "Auto" : `${v} pt`)}
+          onChange={(v) => setFormat({ style: { heading_size: v === 0 ? 0 : Math.max(8, v) } })}
+        />
+        <div className="grid gap-1.5">
+          <Label className="font-normal">Bullet style</Label>
+          <Segmented
+            label="Bullet style"
+            value={format.style.bullet}
+            onChange={(bullet) => setFormat({ style: { bullet } })}
+            options={[
+              { value: "template", label: "Auto" },
+              { value: "disc", label: "•" },
+              { value: "circle", label: "○" },
+              { value: "square", label: "■" },
+              { value: "dash", label: "–" },
+              { value: "arrow", label: "›" },
+              { value: "check", label: "✓" },
+              { value: "none", label: "None" },
+            ]}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label className="font-normal">Contact separator</Label>
+          <Segmented
+            label="Contact separator"
+            value={format.style.separator}
+            onChange={(separator) => setFormat({ style: { separator } })}
+            options={[
+              { value: "template", label: "Auto" },
+              { value: "pipe", label: "|" },
+              { value: "bullet", label: "•" },
+              { value: "dot", label: "·" },
+              { value: "slash", label: "/" },
+              { value: "dash", label: "—" },
+            ]}
+          />
+        </div>
       </Group>
 
       <Group title="Typography">
@@ -227,6 +413,7 @@ export function DesignPanel({ templates }: { templates: TemplateOption[] }) {
         <SliderRow label="Line height" value={format.spacing.line_height} min={1} max={2} step={0.05} format={(v) => v.toFixed(2)} onChange={(v) => setFormat({ spacing: { line_height: v } })} />
         <SliderRow label="Letter spacing" value={format.font.letter_spacing} min={-0.03} max={0.1} step={0.005} format={(v) => `${v.toFixed(3)} em`} onChange={(v) => setFormat({ font: { letter_spacing: v } })} />
         <SliderRow label="Section spacing" value={format.spacing.section_spacing} min={4} max={40} step={1} unit=" pt" onChange={(v) => setFormat({ spacing: { section_spacing: v } })} />
+        <SliderRow label="Space between entries" value={format.spacing.item_spacing} min={0} max={24} step={1} unit=" pt" onChange={(v) => setFormat({ spacing: { item_spacing: v } })} />
       </Group>
 
       <Group title="Colors">

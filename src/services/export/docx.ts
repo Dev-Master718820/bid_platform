@@ -21,8 +21,7 @@ import {
   type ParagraphChild,
 } from "docx";
 import {
-  SKILL_CATEGORIES,
-  SKILL_CATEGORY_LABELS,
+  skillLabel,
   sectionTitle,
   type ResumeBody,
   type ResumeDocument,
@@ -30,7 +29,7 @@ import {
 } from "@/features/resume/schema";
 import type { FormatSettings, TemplateKey } from "@/features/resume/format";
 import { getFont } from "@/templates/fonts";
-import { contactItems, splitSections } from "@/templates/shared/frame";
+import { contactItems, jobHeaderParts, splitSections } from "@/templates/shared/frame";
 import { PAGE_MM, mmToTwip, ptToHalfPt, ptToTwip } from "@/templates/geometry";
 
 /**
@@ -71,6 +70,8 @@ const CONTACT_IN_SIDE: Partial<Record<TemplateKey, (layout: string) => boolean>>
 };
 
 const hex = (c: string) => c.replace("#", "").toUpperCase();
+const BULLET_TEXT: Record<string, string> = { disc: "•", circle: "◦", square: "▪", dash: "–", arrow: "›", check: "✓" };
+const SEPARATOR_TEXT: Record<string, string> = { pipe: "|", bullet: "•", dot: "·", slash: "/", dash: "—" };
 const NONE: IBorderOptions = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
 
 function tint(color: string, amount: number) {
@@ -87,6 +88,8 @@ class Builder {
   private h2: number;
   private charSpacing: number;
   private align: (typeof AlignmentType)[keyof typeof AlignmentType];
+  private hAlign: (typeof AlignmentType)[keyof typeof AlignmentType];
+  private headingUpper: boolean;
   constructor(
     private body: ResumeBody,
     private f: FormatSettings,
@@ -104,7 +107,16 @@ class Builder {
     this.small = Math.round(f.font.size * 0.9 * 2) / 2;
     this.h2 = Math.round(f.font.size * 1.18 * 2) / 2;
     this.charSpacing = Math.round(f.font.letter_spacing * f.font.size * 20);
-    this.align = { left: AlignmentType.LEFT, center: AlignmentType.CENTER, right: AlignmentType.RIGHT }[f.alignment];
+    const toAlign = (a: "left" | "center" | "right") => ({ left: AlignmentType.LEFT, center: AlignmentType.CENTER, right: AlignmentType.RIGHT })[a];
+    this.align = toAlign(f.alignment);
+    // Section titles align independently of the header (see style.heading_align).
+    this.hAlign = toAlign(f.style.heading_align === "header" ? f.alignment : f.style.heading_align);
+    this.headingUpper = f.style.heading_case === "template" ? this.s.headingUpper : f.style.heading_case === "uppercase";
+    if (f.style.heading_size > 0) this.h2 = f.style.heading_size;
+  }
+
+  get bodyAlign() {
+    return this.f.style.body_align === "justify" ? AlignmentType.JUSTIFIED : undefined;
   }
 
   get lineSpacing() {
@@ -145,7 +157,7 @@ class Builder {
     if (contacts.length) {
       const children: ParagraphChild[] = [];
       contacts.forEach((c, i) => {
-        if (i) children.push(this.run("  |  ", { size: ptToHalfPt(this.small), color: band ? fg : "9CA3AF" }));
+        if (i) children.push(this.run(`  ${SEPARATOR_TEXT[this.f.style.separator] ?? "|"}  `, { size: ptToHalfPt(this.small), color: band ? fg : "9CA3AF" }));
         const r = this.run(c.label, { size: ptToHalfPt(this.small), color: band ? fg : undefined });
         children.push(c.href ? new ExternalHyperlink({ link: c.href, children: [r] }) : r);
       });
@@ -164,18 +176,18 @@ class Builder {
   heading(title: string, inSide: boolean): Paragraph {
     const border = { style: BorderStyle.SINGLE, size: 6, color: hex(this.f.colors.divider), space: 2 };
     return new Paragraph({
-      alignment: inSide ? AlignmentType.LEFT : this.align,
+      alignment: inSide ? AlignmentType.LEFT : this.hAlign,
       keepNext: this.keep,
       keepLines: true,
       spacing: { before: ptToTwip(this.f.spacing.section_spacing), after: 100 },
       border: this.s.headingBorder === "bottom" ? { bottom: border } : this.s.headingBorder === "both" ? { top: border, bottom: border } : undefined,
       children: [
         ...(this.s.headingPrefix ? [this.run(this.s.headingPrefix, { color: hex(this.f.colors.accent), size: ptToHalfPt(this.h2), bold: true })] : []),
-        this.run(this.s.headingUpper ? title.toUpperCase() : title, {
+        this.run(this.headingUpper ? title.toUpperCase() : title, {
           bold: true,
-          size: ptToHalfPt(this.f.template === "minimal" || this.f.template === "developer" ? this.size : this.h2),
+          size: ptToHalfPt(this.f.style.heading_size === 0 && (this.f.template === "minimal" || this.f.template === "developer") ? this.size : this.h2),
           color: hex(this.f.template === "modern" ? this.f.colors.header : this.f.colors.accent),
-          characterSpacing: this.s.headingUpper ? ptToTwip(this.size * 0.08) : undefined,
+          characterSpacing: this.headingUpper ? ptToTwip(this.size * 0.08) : undefined,
         }),
       ],
     });
@@ -192,11 +204,23 @@ class Builder {
       new Paragraph({
         keepNext: this.keep,
         keepLines: true,
-        spacing: { before: 100, ...this.lineSpacing },
+        spacing: { before: ptToTwip(this.f.spacing.item_spacing), ...this.lineSpacing },
         tabStops: [{ type: TabStopType.RIGHT, position: this.width }],
         children: [...left, ...(right ? [this.run(`\t${right}`, { size: ptToHalfPt(this.small), color: "4B5563" })] : [])],
       }),
     ];
+  }
+
+  /** Second job-header line: left text, and right text on a right-aligned tab stop (stacked in side columns). */
+  subRow(left: string, right: string, inSide: boolean) {
+    const style = { size: ptToHalfPt(this.small), color: "6B7280" };
+    if (inSide || !right) return this.sub([left, right].filter(Boolean).join(" · "));
+    return new Paragraph({
+      keepNext: this.keep,
+      spacing: this.lineSpacing,
+      tabStops: [{ type: TabStopType.RIGHT, position: this.width }],
+      children: [this.run(left, style), this.run(`\t${right}`, style)],
+    });
   }
 
   sub(text: string, keepNext = true) {
@@ -204,13 +228,18 @@ class Builder {
   }
 
   para(text: string, o: { justify?: boolean } = {}) {
+    if (this.f.style.body_align === "justify") o = { justify: true };
     return new Paragraph({ spacing: { ...this.lineSpacing, after: 40 }, alignment: o.justify ? AlignmentType.JUSTIFIED : AlignmentType.LEFT, children: [this.run(text)] });
   }
 
   bullets(items: string[]) {
     return items
       .filter((a) => a.trim())
-      .map((a) => new Paragraph({ numbering: { reference: "rf-bullets", level: 0 }, keepLines: true, spacing: { ...this.lineSpacing, after: 30 }, children: [this.run(a)] }));
+      .map((a) =>
+        this.f.style.bullet === "none"
+          ? new Paragraph({ keepLines: true, alignment: this.bodyAlign, spacing: { ...this.lineSpacing, after: 30 }, children: [this.run(a)] })
+          : new Paragraph({ numbering: { reference: "rf-bullets", level: 0 }, keepLines: true, alignment: this.bodyAlign, spacing: { ...this.lineSpacing, after: 30 }, children: [this.run(a)] }),
+      );
   }
 
   tech(label: string, items: string[]) {
@@ -234,17 +263,17 @@ class Builder {
 
     switch (k) {
       case "summary":
-        out.push(this.para(b.summary.content, { justify: this.f.template === "executive" }));
+        out.push(this.para(b.summary.content, { justify: this.f.style.body_align === "justify" || (this.f.style.body_align === "template" && (this.f.template === "executive" || this.f.template === "luxe")) }));
         break;
       case "skills":
-        for (const c of SKILL_CATEGORIES) {
-          if (!b.skills[c].length) continue;
+        for (const [key, items] of Object.entries(b.skills)) {
+          if (!items.length) continue;
           out.push(
             new Paragraph({
               spacing: { ...this.lineSpacing, after: 30 },
               children: [
-                this.run(`${SKILL_CATEGORY_LABELS[c]}: `, { bold: true, color: this.f.template === "developer" ? hex(this.f.colors.accent) : undefined }),
-                this.run(b.skills[c].join(", ")),
+                ...(key ? [this.run(`${skillLabel(key)}: `, { bold: true, color: this.f.template === "developer" ? hex(this.f.colors.accent) : undefined })] : []),
+                this.run(items.join(", ")),
               ],
             }),
           );
@@ -252,8 +281,11 @@ class Builder {
         break;
       case "experience":
         for (const e of b.experience) {
-          out.push(...this.entryHead(this.roleLine(e.role, e.company), e.period, inSide));
-          if (e.location || e.employment_type) out.push(this.sub([e.location, e.employment_type].filter(Boolean).join(" · ")));
+          // Same layout rules as the HTML templates (style.entry_*).
+          const jh = jobHeaderParts(e, this.f.style);
+          out.push(...this.entryHead(this.roleLine(e.role, jh.companyInline ? e.company : ""), e.period, inSide));
+          const leftText = [jh.left.company, jh.left.text].filter(Boolean).join(" · ");
+          if (leftText || jh.right) out.push(this.subRow(leftText, jh.right, inSide));
           out.push(...this.bullets(e.achievements));
           if (this.s.showTech && e.technologies.length) out.push(this.tech(techLabel, e.technologies));
         }
@@ -378,7 +410,7 @@ export async function buildDocx(document: ResumeDocument, format: FormatSettings
             {
               level: 0,
               format: LevelFormat.BULLET,
-              text: format.template === "minimal" ? "–" : "•",
+              text: BULLET_TEXT[format.style.bullet] ?? (format.template === "minimal" ? "–" : "•"),
               alignment: AlignmentType.LEFT,
               style: { paragraph: { indent: { left: 300, hanging: 200 } }, run: { color: hex(format.template === "modern" ? format.colors.accent : format.colors.text) } },
             },

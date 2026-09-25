@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { formatPeriod } from "@/utils/dates";
-import { SKILL_CATEGORIES, resumeDocumentSchema, type ResumeBody, type ResumeDocument } from "./schema";
+import { hasSkills, resumeDocumentSchema, type ResumeBody, type ResumeDocument } from "./schema";
 
 /**
  * Profile JSON — the candidate's personal record: contact details, summary, education,
@@ -59,7 +59,8 @@ export const profileSchema = z.object({
     .optional()
     .catch(undefined),
   /** Either grouped ({ languages: [...], frameworks: [...] }) or a flat list. */
-  skills: z.union([z.record(z.string(), list), list]).optional().catch(undefined),
+  /** Free-form skill groups — any shape the resume schema accepts (see skillsSchema). */
+  skills: z.unknown().optional(),
   languages: z
     .array(z.union([z.string().transform((language) => ({ language, proficiency: undefined as string | undefined })), z.object({ language: s, proficiency: s })]))
     .max(30)
@@ -80,17 +81,6 @@ const join = (parts: (string | undefined | null)[], sep: string) => parts.filter
 export function profileToResume(p: Profile): ResumeDocument {
   const pi = p.personal_information ?? {};
 
-  const skills: Record<string, string[]> = {};
-  if (Array.isArray(p.skills)) {
-    skills.other = p.skills;
-  } else if (p.skills) {
-    for (const [key, items] of Object.entries(p.skills)) {
-      const k = key.toLowerCase();
-      const cat = (SKILL_CATEGORIES as readonly string[]).includes(k) ? k : "other";
-      skills[cat] = [...(skills[cat] ?? []), ...(items ?? [])];
-    }
-  }
-
   return resumeDocumentSchema.parse({
     resume: {
       header: {
@@ -104,7 +94,8 @@ export function profileToResume(p: Profile): ResumeDocument {
         location: join([pi.city, pi.state, pi.country], ", "),
       },
       summary: { content: p.summary || pi.summary || "" },
-      skills,
+      // Free-form groups, passed through as written (normalized by the resume schema).
+      skills: p.skills ?? {},
       education: (p.education ?? []).map((e) => ({
         school: e.school ?? "",
         degree: join([e.degree, e.field_of_study], ", "),
@@ -149,7 +140,7 @@ export function mergeResume(resume: ResumeDocument | null, fromProfile: ResumeDo
       ...r,
       header: Object.fromEntries(Object.entries(r.header).map(([k, v]) => [k, v || p.header[k as keyof typeof p.header]])) as ResumeBody["header"],
       summary: { content: r.summary.content || p.summary.content },
-      skills: SKILL_CATEGORIES.some((c) => r.skills[c].length) ? r.skills : p.skills,
+      skills: hasSkills(r.skills) ? r.skills : p.skills,
       experience: pick("experience"),
       education: pick("education"),
       certifications: pick("certifications"),

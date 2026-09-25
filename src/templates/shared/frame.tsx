@@ -1,7 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import {
-  SKILL_CATEGORIES,
-  SKILL_CATEGORY_LABELS,
+  skillLabel,
   sectionTitle,
   visibleSections,
   type ResumeBody,
@@ -54,6 +53,9 @@ export function splitSections(body: ResumeBody, layout: FormatSettings["layout"]
   return { main: all.filter((k) => MAIN.includes(k)), side: all.filter((k) => !MAIN.includes(k)) };
 }
 
+const toJustify = (a: string) => (a === "center" ? "center" : a === "right" ? "flex-end" : "flex-start");
+const headingAlign = (f: FormatSettings) => (f.style.heading_align === "header" ? f.alignment : f.style.heading_align);
+
 export function cssVars(format: FormatSettings): CSSProperties {
   const f = format.font;
   return {
@@ -61,7 +63,7 @@ export function cssVars(format: FormatSettings): CSSProperties {
     "--rf-mono": MONO_CSS,
     "--rf-size": `${f.size}pt`,
     "--rf-name-size": `${f.heading_size}pt`,
-    "--rf-h2-size": `${Math.round(f.size * 1.18 * 10) / 10}pt`,
+    "--rf-h2-size": format.style.heading_size > 0 ? `${format.style.heading_size}pt` : `${Math.round(f.size * 1.18 * 10) / 10}pt`,
     "--rf-small": `${Math.round(f.size * 0.9 * 10) / 10}pt`,
     "--rf-lh": String(format.spacing.line_height),
     "--rf-ls": `${f.letter_spacing}em`,
@@ -70,9 +72,62 @@ export function cssVars(format: FormatSettings): CSSProperties {
     "--rf-accent": format.colors.accent,
     "--rf-divider": format.colors.divider,
     "--rf-text": format.colors.text,
+    "--rf-item-gap": `${format.spacing.item_spacing}pt`,
+    // Header (name, title, contact) and section headings align independently.
     "--rf-align": format.alignment,
-    "--rf-justify": format.alignment === "center" ? "center" : format.alignment === "right" ? "flex-end" : "flex-start",
+    "--rf-justify": toJustify(format.alignment),
+    "--rf-h-align": headingAlign(format),
+    "--rf-h-justify": toJustify(headingAlign(format)),
   } as CSSProperties;
+}
+
+const BULLET_GLYPH: Record<string, string> = { dash: "–", arrow: "›", check: "✓" };
+const SEPARATOR_GLYPH: Record<string, string> = { pipe: "|", bullet: "•", dot: "·", slash: "/", dash: "—" };
+
+/**
+ * Scope class for a resume's style overrides. The <style> element is global to the page, so the rules
+ * must target only this resume — not other resumes on the same page (e.g. template thumbnails).
+ */
+export function styleScope(format: FormatSettings): string {
+  const key = JSON.stringify(format.style);
+  let h = 5381;
+  for (let i = 0; i < key.length; i++) h = ((h << 5) + h + key.charCodeAt(i)) | 0;
+  return `rf-st-${(h >>> 0).toString(36)}`;
+}
+
+/**
+ * User style choices override the template (emitted after template CSS, with !important so they win
+ * over template-specific selectors), scoped to this resume via styleScope(). Only options not set to
+ * "template" emit rules.
+ */
+export function styleCss(format: FormatSettings): string {
+  return unscopedStyleCss(format).replace(/\.rf /g, `.rf.${styleScope(format)} `);
+}
+
+function unscopedStyleCss(format: FormatSettings): string {
+  const st = format.style;
+  const r: string[] = [];
+  if (st.heading_size > 0) r.push(".rf .rf-h2{font-size:var(--rf-h2-size)!important;}");
+  // An explicit section-title alignment applies in side columns too ("As header" keeps them left).
+  if (st.heading_align !== "header") r.push(".rf .rf-side .rf-h2{text-align:var(--rf-h-align)!important;justify-content:var(--rf-h-justify)!important;}");
+  if (st.heading_case === "uppercase") r.push(".rf .rf-h2{text-transform:uppercase!important;letter-spacing:.06em!important;}");
+  if (st.heading_case === "normal") r.push(".rf .rf-h2{text-transform:none!important;letter-spacing:normal!important;}");
+  if (st.body_align !== "template") r.push(`.rf .rf-p,.rf .rf-bullets li{text-align:${st.body_align}!important;}`);
+  if (st.bullet === "disc" || st.bullet === "circle" || st.bullet === "square") {
+    r.push(`.rf .rf-bullets{list-style:${st.bullet} outside!important;padding-left:13pt!important;}`, ".rf .rf-bullets li{padding-left:0!important;}", ".rf .rf-bullets li::before{content:none!important;}");
+  } else if (st.bullet === "none") {
+    r.push(".rf .rf-bullets{list-style:none!important;padding-left:0!important;}", ".rf .rf-bullets li{padding-left:0!important;}", ".rf .rf-bullets li::before{content:none!important;}");
+  } else if (st.bullet !== "template") {
+    r.push(
+      ".rf .rf-bullets{list-style:none!important;padding-left:0!important;}",
+      ".rf .rf-bullets li{position:relative;padding-left:11pt!important;}",
+      `.rf .rf-bullets li::before{content:"${BULLET_GLYPH[st.bullet]}"!important;position:absolute;left:0;color:var(--rf-accent);}`,
+    );
+  }
+  if (st.separator !== "template") {
+    r.push(`.rf .rf-contact span+span::before{content:"${SEPARATOR_GLYPH[st.separator]}"!important;font-size:1em!important;top:0!important;opacity:.5!important;}`);
+  }
+  return r.join("\n");
 }
 
 export const BASE_CSS = `
@@ -91,8 +146,8 @@ export const BASE_CSS = `
 .rf-header-in-main .rf-main>.rf-header{margin-bottom:var(--rf-gap);}
 .rf-section{margin-bottom:var(--rf-gap);}
 .rf-section:last-child{margin-bottom:0;}
-.rf-h2{font-size:var(--rf-h2-size);font-weight:700;line-height:1.3;text-align:var(--rf-align);margin-bottom:6pt;break-after:avoid;page-break-after:avoid;}
-.rf-entry{margin-bottom:8pt;}
+.rf-h2{font-size:var(--rf-h2-size);font-weight:700;line-height:1.3;text-align:var(--rf-h-align);justify-content:var(--rf-h-justify);margin-bottom:6pt;break-after:avoid;page-break-after:avoid;}
+.rf-entry{margin-bottom:var(--rf-item-gap);}
 .rf-entry:last-child{margin-bottom:0;}
 .rf-entry-head{display:flex;justify-content:space-between;align-items:baseline;gap:8pt;break-inside:avoid;break-after:avoid;page-break-after:avoid;}
 .rf-role{font-weight:700;}
@@ -115,6 +170,11 @@ export const BASE_CSS = `
 .rf-l-sidebar .rf-cols{grid-template-columns:minmax(0,0.5fr) minmax(0,1fr);}
 .rf-l-sidebar .rf-side{order:-1;}
 .rf-side .rf-entry-head{display:block;}
+.rf-entry-head.rf-eh{display:block;}
+.rf-eh-row{display:flex;justify-content:space-between;align-items:baseline;gap:8pt;}
+.rf-eh-right{text-align:right;white-space:nowrap;}
+.rf-side .rf-eh-row{display:block;}
+.rf-side .rf-eh-right{text-align:left;white-space:normal;}
 .rf-side .rf-meta{white-space:normal;}
 .rf-side .rf-h2{text-align:left;}
 [data-block]{break-inside:avoid;page-break-inside:avoid;}
@@ -189,15 +249,16 @@ function Heading({ children, gradient }: { children: string; gradient?: [string,
 }
 
 function Skills({ body, style, inSide }: { body: ResumeBody; style: SkillsStyle; inSide: boolean }) {
-  const cats = SKILL_CATEGORIES.filter((c) => body.skills[c].length);
+  // Free-form groups, in the order the user wrote them. An unlabeled group ("") has no label.
+  const groups = Object.entries(body.skills).filter(([, items]) => items.length);
   if (style === "chips") {
     return (
       <>
-        {cats.map((c) => (
-          <div key={c} className="rf-skill-row" data-block>
-            <b>{SKILL_CATEGORY_LABELS[c]}</b>
+        {groups.map(([key, items]) => (
+          <div key={key} className="rf-skill-row" data-block>
+            {key && <b>{skillLabel(key)}</b>}
             <div className="rf-chips">
-              {body.skills[c].map((s, i) => (
+              {items.map((s, i) => (
                 <span className="rf-chip" key={i}>
                   {s}
                 </span>
@@ -211,10 +272,10 @@ function Skills({ body, style, inSide }: { body: ResumeBody; style: SkillsStyle;
   if (style === "grid" && !inSide) {
     return (
       <dl className="rf-skill-grid" data-block>
-        {cats.map((c) => (
-          <div key={c} style={{ display: "contents" }}>
-            <dt>{SKILL_CATEGORY_LABELS[c]}</dt>
-            <dd>{body.skills[c].join(", ")}</dd>
+        {groups.map(([key, items]) => (
+          <div key={key} style={{ display: "contents" }}>
+            <dt>{key ? skillLabel(key) : ""}</dt>
+            <dd>{items.join(", ")}</dd>
           </div>
         ))}
       </dl>
@@ -222,12 +283,65 @@ function Skills({ body, style, inSide }: { body: ResumeBody; style: SkillsStyle;
   }
   return (
     <>
-      {cats.map((c) => (
-        <div key={c} className="rf-skill-row" data-block>
-          <b>{SKILL_CATEGORY_LABELS[c]}:</b> {body.skills[c].join(", ")}
+      {groups.map(([key, items]) => (
+        <div key={key} className="rf-skill-row" data-block>
+          {key && <b>{skillLabel(key)}:</b>} {items.join(", ")}
         </div>
       ))}
     </>
+  );
+}
+
+/**
+ * Job header layout (shared by the HTML renderer and the DOCX builder):
+ *   line 1: Role [· Company]                      Period
+ *   line 2: [Company] [· Location/Type]      [Location/Type]
+ * driven by style.entry_layout / entry_location / entry_type.
+ */
+export function jobHeaderParts(e: { company: string; location: string; employment_type: string }, style: FormatSettings["style"]) {
+  const loc = e.location.trim();
+  const type = e.employment_type.trim();
+  const mode = style.entry_type;
+  // Location text with the employment type attached (unless the type goes to the other side / is hidden).
+  const attached =
+    mode === "dot" ? [loc, type].filter(Boolean).join(" · ") : mode === "pipe" ? [loc, type].filter(Boolean).join(" | ") : mode === "paren" ? (loc && type ? `${loc} (${type})` : loc || type) : loc;
+  const where = style.entry_location;
+  const locText = where === "hide" ? (mode === "split" || mode === "hide" ? "" : type) : attached;
+  const stacked = style.entry_layout === "stacked";
+
+  const left = { company: stacked ? e.company : "", text: where === "left" || (where === "hide" && locText) ? locText : "" };
+  const right = [where === "right" ? locText : "", mode === "split" ? type : ""].filter(Boolean).join(" · ");
+  return { companyInline: !stacked, left, right };
+}
+
+function JobHead({ e, style }: { e: ResumeBody["experience"][number]; style: FormatSettings["style"] }) {
+  const p = jobHeaderParts(e, style);
+  const hasLine2 = Boolean(p.left.company || p.left.text || p.right);
+  return (
+    <div className="rf-entry-head rf-eh" data-block data-keep-next>
+      <div className="rf-eh-row">
+        <div>
+          <span className="rf-role">{e.role}</span>
+          {p.companyInline && e.company && (
+            <span className="rf-org">
+              {e.role ? " · " : ""}
+              {e.company}
+            </span>
+          )}
+        </div>
+        {e.period ? <div className="rf-meta">{e.period}</div> : null}
+      </div>
+      {hasLine2 && (
+        <div className="rf-eh-row rf-sub">
+          <div>
+            {p.left.company && <span className="rf-company">{p.left.company}</span>}
+            {p.left.company && p.left.text ? " · " : ""}
+            {p.left.text}
+          </div>
+          {p.right ? <div className="rf-eh-right">{p.right}</div> : null}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -254,7 +368,7 @@ function Bullets({ items }: { items: string[] }) {
   );
 }
 
-function Section({ k, body, opts, inSide }: { k: SectionKey; body: ResumeBody; opts: TemplateOptions; inSide: boolean }) {
+function Section({ k, body, opts, inSide, format }: { k: SectionKey; body: ResumeBody; opts: TemplateOptions; inSide: boolean; format: FormatSettings }) {
   const title = sectionTitle(body, k);
   let content: ReactNode = null;
 
@@ -272,18 +386,7 @@ function Section({ k, body, opts, inSide }: { k: SectionKey; body: ResumeBody; o
     case "experience":
       content = body.experience.map((e, i) => (
         <div className="rf-entry" key={i}>
-          <EntryHead
-            left={
-              <>
-                <span className="rf-role">{e.role}</span>
-                {e.company && <span className="rf-org">{e.role ? " · " : ""}{e.company}</span>}
-                {(e.location || e.employment_type) && (
-                  <div className="rf-sub">{[e.location, e.employment_type].filter(Boolean).join(" · ")}</div>
-                )}
-              </>
-            }
-            right={e.period}
-          />
+          <JobHead e={e} style={format.style} />
           <Bullets items={e.achievements} />
           {opts.showTech !== false && e.technologies.length > 0 && (
             <div className="rf-tech" data-block>
@@ -398,8 +501,11 @@ export function ResumeFrame({
   );
 
   return (
-    <div className={`rf ${templateClass} rf-l-${format.layout} rf-a-${format.alignment}${hasCols ? " rf-has-cols" : ""}${headerInMain ? " rf-header-in-main" : ""}`} style={cssVars(format)}>
-      <style dangerouslySetInnerHTML={{ __html: BASE_CSS + css }} />
+    <div
+      className={`rf ${templateClass} ${styleScope(format)} rf-l-${format.layout} rf-a-${format.alignment}${hasCols ? " rf-has-cols" : ""}${headerInMain ? " rf-header-in-main" : ""}`}
+      style={cssVars(format)}
+    >
+      <style dangerouslySetInnerHTML={{ __html: BASE_CSS + css + styleCss(format) }} />
       {!headerInMain && headerEl}
       <div className="rf-body">
         {hasCols ? (
@@ -407,18 +513,18 @@ export function ResumeFrame({
             <div className="rf-main">
               {headerInMain && headerEl}
               {main.map((k) => (
-                <Section key={k} k={k} body={data} opts={options} inSide={false} />
+                <Section key={k} k={k} body={data} opts={options} format={format} inSide={false} />
               ))}
             </div>
             <aside className="rf-side">
               {sideTop}
               {side.map((k) => (
-                <Section key={k} k={k} body={data} opts={options} inSide />
+                <Section key={k} k={k} body={data} opts={options} format={format} inSide />
               ))}
             </aside>
           </div>
         ) : (
-          main.map((k) => <Section key={k} k={k} body={data} opts={options} inSide={false} />)
+          main.map((k) => <Section key={k} k={k} body={data} opts={options} format={format} inSide={false} />)
         )}
       </div>
     </div>

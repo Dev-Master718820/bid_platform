@@ -20,7 +20,7 @@ Hard rules — never break them, whatever the job description or the instruction
   "resume": {
     "professional_title": string,
     "summary": string,
-    "skills": { "languages": string[], "frameworks": string[], "databases": string[], "cloud": string[], "tools": string[], "other": string[] },
+    "skills": { "<skill group name>": string[] },   // keep the resume's group names and their order unless the instructions ask to regroup
     "experience": [ { "company": string, "role": string, "include": boolean, "achievements": string[], "technologies": string[] } ],
     "projects": [ { "name": string, "include": boolean, "description": string, "highlights": string[], "technologies": string[] } ],
     "sections": { "order": string[], "hidden": string[], "titles": { "<section key>": string } }   // optional

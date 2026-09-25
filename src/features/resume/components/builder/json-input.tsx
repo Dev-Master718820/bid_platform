@@ -13,7 +13,7 @@ const COPY = {
     placeholder: `{
   "personal_information": { "first_name": "…", "last_name": "…", "email_address": "…" },
   "education": [ … ], "certifications": [ … ],
-  "skills": { "languages": [ … ] }, "languages": [ … ]
+  "skills": { "Frontend": [ … ], "Backend": [ … ] }, "languages": [ … ]
 }`,
     note: "Fills everything the Resume JSON leaves empty. SSN, driver's license, date of birth, race and full address are ignored — never rendered or saved.",
   },
@@ -29,7 +29,7 @@ const COPY = {
         "employment_type": "Full Time",
         "responsibilities": [ "…" ], "technologies": [ "Java", "Azure" ] }
     ],
-    "skills": { "languages": [ … ] }
+    "skills": { "Frontend": [ "React" ], "Backend": [ "Go" ], "Any group name": [ … ] }
   }
 }`,
     note: "Holds your career_history (end_date null = Present). Takes priority: any section or header field filled here overrides the profile.",

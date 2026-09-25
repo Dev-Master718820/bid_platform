@@ -71,12 +71,13 @@ export const SAMPLE_RESUME_INPUT = {
         technologies: ["Java", "Spring Boot", "Azure"],
       },
     ],
+    // Skill groups are free-form: any names, rendered in this order.
     skills: {
-      languages: ["Java", "Go", "TypeScript", "Python", "SQL"],
-      frameworks: ["Spring Boot", "Node.js", "React"],
-      databases: ["PostgreSQL", "Redis", "DynamoDB"],
-      cloud: ["Azure", "AWS", "Kubernetes", "Terraform"],
-      tools: ["Kafka", "GitHub Actions", "Datadog"],
+      Backend: ["Go", "Java", "Spring Boot", "Node.js", "Kafka"],
+      Frontend: ["TypeScript", "React", "Next.js"],
+      "Cloud & DevOps": ["AWS", "Azure", "Kubernetes", "Terraform", "GitHub Actions"],
+      Data: ["PostgreSQL", "Redis", "DynamoDB", "SQL"],
+      Observability: ["Datadog", "OpenTelemetry"],
     },
   },
 };

@@ -5,7 +5,7 @@ const css = `
 .rf-t-modern .rf-header{padding-bottom:10pt;border-bottom:2pt solid var(--rf-accent);}
 .rf-t-modern .rf-name{letter-spacing:-.01em;}
 .rf-t-modern .rf-title{color:var(--rf-accent);font-weight:600;}
-.rf-t-modern .rf-h2{color:var(--rf-header);display:flex;align-items:center;gap:6pt;justify-content:var(--rf-justify);}
+.rf-t-modern .rf-h2{color:var(--rf-header);display:flex;align-items:center;gap:6pt;justify-content:var(--rf-h-justify);}
 .rf-t-modern .rf-h2::before{content:"";width:3pt;height:1em;border-radius:1pt;background:var(--rf-accent);flex:none;}
 .rf-t-modern .rf-org{color:var(--rf-accent);}
 .rf-t-modern .rf-bullets li::marker{color:var(--rf-accent);}

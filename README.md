@@ -29,13 +29,13 @@ Resume JSON ─────────────────────┘  
   "education": [{ "school": "", "degree": "", "field_of_study": "", "start_date": "", "end_date": "", "gpa": "" }],
   "certifications": [{ "name": "", "issuer": "", "issue_date": "", "credential_url": "" }],
   "projects": [{ "name": "", "role": "", "url": "", "description": "", "highlights": [], "technologies": [] }],
-  "skills": { "languages": [], "frameworks": [], "databases": [], "cloud": [], "tools": [] },
+  "skills": { "Frontend": ["React"], "Backend": ["Go"] },
   "languages": [{ "language": "English", "proficiency": "Native" }],
   "awards": [{ "title": "", "issuer": "", "date": "", "description": "" }]
 }
 ```
 
-`skills` may also be a flat array.
+**Skills are free-form groups** (in both JSONs): any group names, rendered in the order written — `{ "Frontend": [...], "Backend": [...], "Soft Skills": [...] }`. Also accepted: a flat list `["Go", "Java"]` (one unlabeled line), or `[{ "name": "Frontend", "items": [...] }]`. Classic keys (`languages`, `frameworks`, `cloud`, …) still work and get friendly labels; `snake_case` names are shown in Title Case.
 `ssn`, `drivers_license_number`, `date_of_birth`, `race` and `full_address` are accepted but **never rendered, exported, or saved** in the browser.
 
 **Resume JSON** — the resume document (`src/features/resume/schema.ts`), including your career history:
@@ -50,7 +50,7 @@ Resume JSON ─────────────────────┘  
         "location": "Redmond, WA", "employment_type": "Full Time",
         "responsibilities": ["Developed scalable backend applications"], "technologies": ["Java", "Azure"] }
     ],
-    "skills": { "languages": [], "frameworks": [], "databases": [], "cloud": [], "tools": [], "other": [] },
+    "skills": { "Frontend": [], "Backend": [], "Any group name": [] },
     "experience": [{ "company": "", "role": "", "period": "", "location": "", "employment_type": "", "achievements": [], "technologies": [] }],
     "education": [{ "school": "", "degree": "", "period": "", "location": "", "details": "" }],
     "certifications": [], "projects": [], "languages": [], "awards": [],
@@ -67,7 +67,21 @@ Resume JSON ─────────────────────┘  
 
 ## Formatting
 
-Template (10) · layout (single, two-column, sidebar) · alignment (left/center/right) · page size (A4/Letter) · page margin · font family · font size · name/heading size · line height · letter spacing · section spacing · header/accent/divider/text colors (+ presets) · section order, visibility and titles. Formatting can be exported and re-imported as JSON.
+Template (10) · layout (single, two-column, sidebar) · page size (A4/Letter) · page margin · font family · font size · name/heading size · line height · letter spacing · section spacing · space between entries · header/accent/divider/text colors (+ presets) · section order, visibility and titles. Formatting can be exported and re-imported as JSON.
+
+Alignment is independent per part: **header** (name, title, contact), **section titles** (same as header, or left/center/right — also in side columns), and **body text** (template default, left, or justified). Section titles also have **case** (template, Normal, UPPERCASE) and **size** (auto or pt); plus **bullet style** (•, ○, ■, –, ›, ✓, none) and **contact separator** (|, •, ·, /, —). "Template"/"Auto" keeps the template's own choice; these options carry over when switching templates, and "Reset style" clears them.
+
+**Job entry header** — choose where the company, location and employment type go (presets in the Format tab, or combine freely):
+
+| Company | Location | Employment type | Result |
+| --- | --- | --- | --- |
+| after role | left | `· Type` | `Role · Company … Dates` / `Location · Full Time` |
+| after role | left | other side | `Role · Company … Dates` / `Location … Full Time` |
+| own line | right | hide | `Role … Dates` / `Company … Location` |
+| own line | right | `(Type)` | `Role … Dates` / `Company … Location (Full Time)` |
+| own line | right | `\| Type` | `Role … Dates` / `Company … Location \| Full Time` |
+
+In formatting JSON: `"style": { "entry_layout": "inline" | "stacked", "entry_location": "left" | "right" | "hide", "entry_type": "dot" | "pipe" | "paren" | "split" | "hide" }`.
 
 | Template | Style |
 | --- | --- |
@@ -83,8 +97,10 @@ Gradients blend the **Header → Accent** colors, so every palette works (try th
 ```json
 { "template": "modern", "layout": "single-column", "alignment": "left", "page_size": "A4",
   "font": { "family": "Inter", "size": 11, "heading_size": 16, "letter_spacing": 0 },
-  "spacing": { "line_height": 1.5, "section_spacing": 20, "page_margin": 16 },
-  "colors": { "header": "#111827", "accent": "#2563eb", "divider": "#d1d5db", "text": "#1f2937" } }
+  "spacing": { "line_height": 1.5, "section_spacing": 20, "page_margin": 16, "item_spacing": 8 },
+  "colors": { "header": "#111827", "accent": "#2563eb", "divider": "#d1d5db", "text": "#1f2937" },
+  "style": { "heading_align": "left", "body_align": "justify", "heading_case": "uppercase",
+             "heading_size": 12, "bullet": "check", "separator": "bullet" } }
 ```
 
 ## Tailor mode (Groq)

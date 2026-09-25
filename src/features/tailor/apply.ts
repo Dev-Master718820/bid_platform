@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SECTION_KEYS, SKILL_CATEGORIES, type ResumeDocument, type SectionKey } from "@/features/resume/schema";
+import { SECTION_KEYS, type ResumeDocument, type SectionKey } from "@/features/resume/schema";
 
 /**
  * Normalizes model typography to plain, ATS-friendly text: some models (e.g. gpt-oss) emit
@@ -100,15 +100,20 @@ export function applyTailoring(original: ResumeDocument, out: TailorOutput): Res
   const o = original.resume;
   const t = out.resume;
 
+  // Skill groups are free-form: keep the model's grouping and order (the prompt may regroup), but
+  // spell a group exactly as the user did when the names match case-insensitively.
   let skills = o.skills;
   if (t.skills) {
-    const next = Object.fromEntries(SKILL_CATEGORIES.map((c) => [c, [] as string[]])) as typeof o.skills;
-    for (const [key, items] of Object.entries(t.skills)) {
-      const cat = (SKILL_CATEGORIES as readonly string[]).includes(key.toLowerCase()) ? (key.toLowerCase() as keyof typeof next) : "other";
-      next[cat] = [...new Set([...next[cat], ...(items ?? []).map((s) => s.slice(0, 80))])].slice(0, 60);
+    const original = new Map(Object.keys(o.skills).map((k) => [k.toLowerCase(), k]));
+    const next: Record<string, string[]> = {};
+    for (const [rawKey, items] of Object.entries(t.skills)) {
+      const key = original.get(rawKey.trim().toLowerCase()) ?? cleanText(rawKey).slice(0, 60);
+      const merged = [...new Set([...(next[key] ?? []), ...(items ?? []).map((s) => s.slice(0, 80))])].slice(0, 60);
+      if (merged.length) next[key] = merged;
     }
-    if (SKILL_CATEGORIES.some((c) => next[c].length)) skills = next;
+    if (Object.keys(next).length) skills = next;
   }
+
 
   const experience = o.experience
     .map((e, i) => {
