@@ -124,9 +124,22 @@ GROQ_API_KEYS="gsk_key1,gsk_key2"      # one or more; rotates to the next key on
 
 `POST /api/tailor` with `{ "document": <Resume JSON>, "jobDescription": "...", "prompt": "..." }` → `{ document, notes, keywords, model }`. `GET /api/tailor` reports whether keys are configured (never the keys).
 
+## Open a PDF / DOCX to edit
+
+**Open** (header) loads an existing resume file so you can edit its JSON and regenerate it:
+
+- **ResumeForge files** — every exported PDF/DOCX embeds its data (Resume JSON + formatting), so opening it restores the resume **exactly**: same template, fonts, colors and layout. Only what is visible on the resume is embedded (content of hidden sections is left out). Turn it off with *Include editable data* in the Download menu.
+  - PDF: stored in the document info dictionary; DOCX: an Office custom XML part (kept when Word or LibreOffice re-saves the file).
+  - **Edited elsewhere?** A fingerprint of the file's text is embedded too. If the file was edited after export (e.g. in Word), you choose: *Restore original* (exact data, without those edits) or *Read edited text* (keeps the edits via AI, and keeps the original formatting).
+- **Any other resume** — the text is extracted (PDF via `unpdf`, DOCX via its XML) and structured into Resume JSON with Groq, copying wording, dates and headings verbatim; pick a template afterwards. Without a Groq key you get the extracted text to paste. Scanned (image-only) PDFs have no text to read.
+
+By default the Profile JSON is cleared on open (so the resume shows exactly what the file contains); tick *Keep my Profile JSON* to let it fill gaps. Files are processed in memory and never stored.
+
+`POST /api/import` (multipart `file`, optional `prefer=text`) → `{ source: "embedded", document, format, edited }` · `{ source: "parsed", document, notes, model, format? }` · `{ source: "text", text }`.
+
 ## Export API
 
-`POST /api/export/pdf` and `POST /api/export/docx` with body `{ "document": <Resume JSON>, "format": <formatting>, "fileName": "resume" }`. Validated with the same schemas as the UI (max 1 MB); returns the file as an attachment. Nothing is stored or logged.
+`POST /api/export/pdf` and `POST /api/export/docx` with body `{ "document": <Resume JSON>, "format": <formatting>, "fileName": "resume", "embed": true }` (`embed` stores the editable data in the file). Validated with the same schemas as the UI (max 1 MB); returns the file as an attachment. Nothing is stored or logged.
 
 ## Project structure
 

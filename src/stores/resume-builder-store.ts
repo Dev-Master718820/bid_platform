@@ -89,6 +89,15 @@ type State = {
   editResumeRaw: (fn: (resume: Record<string, unknown>) => void) => void;
   loadSample: () => void;
   clearAll: () => void;
+  /** Embed editable data (visible resume + formatting) in exported PDF/DOCX files. */
+  embedData: boolean;
+  setEmbedData: (v: boolean) => void;
+  /**
+   * Loads a resume opened from a PDF/DOCX: it becomes the Resume JSON; the Profile JSON is cleared
+   * unless kept (it would otherwise fill gaps with someone else's details); formatting is restored
+   * when the file carried it.
+   */
+  importResume: (p: { document: ResumeDocument; format?: FormatSettings; fileName?: string; keepProfile: boolean }) => void;
 };
 
 const pretty = (v: unknown) => JSON.stringify(v, null, 2);
@@ -147,6 +156,17 @@ export const useBuilder = create<State>()(
         get().setResumeText(pretty(SAMPLE_RESUME_INPUT));
         set({ fileName: "Alex_Morgan_Resume" });
       },
+      embedData: true,
+      setEmbedData: (embedData) => set({ embedData }),
+      importResume: ({ document, format, fileName, keepProfile }) => {
+        if (!keepProfile) get().setProfileText("");
+        get().setResumeText(pretty(document));
+        set({
+          mode: "normal",
+          ...(format && { format: coerceFormat(format) }),
+          ...(fileName && { fileName: fileName.slice(0, 100) }),
+        });
+      },
       clearAll: () => set({ profileText: "", resumeText: "", profileDoc: null, resumeDoc: null, profileErrors: [], resumeErrors: [], fileName: "resume" }),
     }),
     {
@@ -171,6 +191,7 @@ export const useBuilder = create<State>()(
           tailorPrompt: s.tailorPrompt,
           tailored: s.tailored,
           autoTailor: s.autoTailor,
+          embedData: s.embedData,
           tailorModel: s.tailorModel,
         };
       },
@@ -185,6 +206,7 @@ export const useBuilder = create<State>()(
           jobDescription: p.jobDescription ?? "",
           tailorPrompt: p.tailorPrompt ?? current.tailorPrompt,
           autoTailor: p.autoTailor ?? true,
+          embedData: p.embedData ?? true,
           tailorModel: typeof p.tailorModel === "string" ? p.tailorModel : "",
           // Drop a persisted tailored version that no longer validates (e.g. after a schema change).
           tailored: p.tailored?.document && parseResumeJson(p.tailored.document).ok ? p.tailored : null,

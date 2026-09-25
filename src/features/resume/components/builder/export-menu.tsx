@@ -12,6 +12,7 @@ export function ExportMenu() {
   const document = useResumeDocument();
   const format = useBuilder((s) => s.format);
   const fileName = useBuilder((s) => s.fileName);
+  const embedData = useBuilder((s) => s.embedData);
   const [busy, setBusy] = useState<string | null>(null);
 
   const run = async (kind: "pdf" | "docx") => {
@@ -21,7 +22,7 @@ export function ExportMenu() {
       await downloadFile(`/api/export/${kind}`, `${fileName || "resume"}.${kind}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ document, format, fileName: fileName || "resume" }),
+        body: JSON.stringify({ document, format, fileName: fileName || "resume", embed: embedData }),
       });
       toast.success(`${kind.toUpperCase()} downloaded`, { id: t });
     } catch (e) {
@@ -46,6 +47,19 @@ export function ExportMenu() {
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => void run("docx")}>
           <FileType2 /> DOCX (Word)
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={(e) => {
+            e.preventDefault(); // keep the menu open while toggling
+            useBuilder.getState().setEmbedData(!embedData);
+          }}
+          className="text-xs"
+        >
+          <input type="checkbox" readOnly checked={embedData} className="accent-[var(--brand)] pointer-events-none size-3.5" aria-label="Include editable data" />
+          <span>
+            Include editable data
+            <span className="text-muted-foreground block text-[11px] leading-tight">Reopen the PDF/DOCX here later to edit it</span>
+          </span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => downloadText(JSON.stringify(document, null, 2), `${fileName || "resume"}.json`)}>

@@ -19,6 +19,7 @@ import { JsonInput } from "./json-input";
 import { PreviewPane } from "./preview-pane";
 import { ExportMenu } from "./export-menu";
 import { TailorPanel } from "./tailor-panel";
+import { OpenFileButton } from "./open-file";
 
 const TEMPLATES = TEMPLATE_KEYS.map((key) => ({ key, ...TEMPLATE_META[key] }));
 
@@ -29,7 +30,7 @@ function EmptyState() {
       <FileJson className="text-brand mx-auto size-8" />
       <h2 className="mt-3 text-lg font-semibold">Generate a resume from JSON</h2>
       <p className="text-muted-foreground mt-1 text-sm">
-        Paste or upload your <b>Profile JSON</b> and/or <b>Resume JSON</b> on the left. Adjust template and formatting, then download PDF or DOCX.
+        Paste or upload your <b>Profile JSON</b> and/or <b>Resume JSON</b> on the left — or <b>Open</b> an existing PDF/DOCX resume. Adjust template and formatting, then download PDF or DOCX.
       </p>
       <Button className="mt-4" variant="brand" onClick={loadSample}>
         <Sparkles /> Load sample data
@@ -141,6 +142,12 @@ export function Generator() {
           <Input value={fileName} onChange={(e) => setFileName(e.target.value)} className="h-8 w-52" aria-label="Download file name" />
         </div>
         <div className="flex-1" />
+        <OpenFileButton
+          onImported={() => {
+            setTab("resume");
+            setView("edit");
+          }}
+        />
         <Button variant="ghost" size="sm" onClick={loadSample}>
           <Sparkles /> <span className="hidden sm:inline">Sample</span>
         </Button>

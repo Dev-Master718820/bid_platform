@@ -10,6 +10,8 @@ export const exportRequestSchema = z.object({
   document: resumeDocumentSchema,
   format: formatSettingsSchema,
   fileName: z.string().trim().max(100).default("resume"),
+  /** Embed the (visible) resume data + formatting so the file can be reopened and edited. */
+  embed: z.boolean().default(true),
 });
 export type ExportRequest = z.infer<typeof exportRequestSchema>;
 
